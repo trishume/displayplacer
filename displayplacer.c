@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    ScreenConfig* screenConfigs = malloc((argc - 1) * sizeof(ScreenConfig));
+    ScreenConfig* screenConfigs = calloc((argc - 1),sizeof(ScreenConfig));
     
     for (int i = 0; i < argc - 1; i++) {
         screenConfigs[i].depth = 0; //overwrite garbage in memory for optional params
@@ -110,6 +110,11 @@ int main(int argc, char* argv[]) {
 
                     screenConfigs[i].modeNum = atoi(propToken);
                     break;
+                case 'n': //num_modes
+                    propToken = strtok_r(NULL, ":", &propSavePtr);
+
+                    screenConfigs[i].modeCount = atoi(propToken);
+                    break;
                 case 'd': //rotation degree
                     propToken = strtok_r(NULL, ":", &propSavePtr);
 
@@ -133,7 +138,24 @@ int main(int argc, char* argv[]) {
     CGBeginDisplayConfiguration(&configRef);
     bool isSuccess = true; //returns non-zero exit code on any errors but allows for completing remaining program execution
     for (int i = 0; i < argc - 1; i++) {
-        screenConfigs[i].id = convertUUIDtoID(screenConfigs[i].uuid);
+        if(screenConfigs[i].modeCount > 0) {
+            bool found = false;
+            for(int j = 0; j < screenCount; j++) {
+                int nModes;
+                CGSGetNumberOfDisplayModes(screenList[j], &nModes);
+                if(nModes == screenConfigs[i].modeCount) {
+                    screenConfigs[i].id = screenList[j];
+                    found = true;
+                }
+            }
+            if(!found) {
+                printf("Couldn't find display with %i modes\n", screenConfigs[i].modeCount);
+                isSuccess = false;
+                continue;
+            }
+        } else {
+            screenConfigs[i].id = convertUUIDtoID(screenConfigs[i].uuid);
+        }
         if (!validateScreenOnline(screenList, screenCount, screenConfigs[i].id, screenConfigs[i].uuid)) {
             isSuccess = false;
             continue;
@@ -243,6 +265,9 @@ void listScreens() {
         CFStringGetCString(CFUUIDCreateString(kCFAllocatorDefault, CGDisplayCreateUUIDFromDisplayID(curScreen)), curScreenUUID, sizeof(curScreenUUID), kCFStringEncodingUTF8);
         printf("Persistent screen id: %s\n", curScreenUUID);
         printf("Contextual screen id: %i\n", curScreen);
+
+        printf("Serial number: %i\n", (int) CGDisplaySerialNumber(curScreen));
+        printf("Unit number: %i\n", (int) CGDisplayUnitNumber(curScreen));
 
         if (CGDisplayIsBuiltin(curScreen)) {
             printf("Type: MacBook built in screen\n");
@@ -493,6 +518,7 @@ bool configureResolution(CGDisplayConfigRef configRef, CGDirectDisplayID screenI
 }
 
 bool configureOrigin(CGDisplayConfigRef configRef, CGDirectDisplayID screenId, char* screenUUID, int x, int y) {
+    // printf("moving %i to %i %i\n", (int)screenId, x, y);
     int retVal = CGConfigureDisplayOrigin(configRef, screenId, x, y);
 
     if (retVal != 0) {

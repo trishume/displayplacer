@@ -60,6 +60,7 @@ typedef struct
     int x;                                   //origin x position
     int y;                                   //origin y position
     int modeNum;                             //display mode id
+    int modeCount;
     int degree;                              //rotation degree
 } ScreenConfig;
 
